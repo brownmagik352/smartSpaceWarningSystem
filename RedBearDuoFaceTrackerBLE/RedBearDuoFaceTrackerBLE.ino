@@ -29,8 +29,8 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 /* Define the pins on the Duo board
  * TODO: change and add/subtract the pins here for your applications (as necessary)
  */
-#define LEFT_EYE_ANALOG_OUT_PIN D0
-#define RIGHT_EYE_ANALOG_OUT_PIN D1
+#define LEFT_EYE_ANALOG_OUT_PIN D4
+#define RIGHT_EYE_ANALOG_OUT_PIN D5
 #define HAPPINESS_ANALOG_OUT_PIN D2
 
 #define MAX_SERVO_ANGLE  180
@@ -40,6 +40,18 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 
 // happiness meter (servo)
 Servo _happinessServo;
+
+// ultrasonic setup
+  // Pins
+const int TRIG_PIN = D0;
+const int ECHO_PIN = D1;
+
+  // Anything over 400 cm (23200 us pulse) is "out of range"
+const unsigned int MAX_DIST = 23200;
+
+// sound and LED indicators
+const int SOUND_OUTPUT_PIN = A4;
+const int LED_OUTPUT_PIN = A0;
 
 // Device connected and disconnected callbacks
 void deviceConnectedCallback(BLEStatus_t status, uint16_t handle);
@@ -114,6 +126,14 @@ void setup() {
   _happinessServo.attach(HAPPINESS_ANALOG_OUT_PIN);
   _happinessServo.write( (int)((MAX_SERVO_ANGLE - MIN_SERVO_ANGLE) / 2.0) );
 
+  // sound and led pin setup
+  pinMode(LED_OUTPUT_PIN, OUTPUT);
+  pinMode(SOUND_OUTPUT_PIN, OUTPUT);
+  
+  // The Trigger pin will tell the sensor to range find
+  pinMode(TRIG_PIN, OUTPUT);
+  digitalWrite(TRIG_PIN, LOW);
+
   // Start a task to check status of the pins on your RedBear Duo
   // Works by polling every X milliseconds where X is _sendDataFrequency
   send_characteristic.process = &bleSendDataTimerCallback;
@@ -123,7 +143,58 @@ void setup() {
 
 void loop() 
 {
-  // Not currently used. The "meat" of the program is in the callback bleWriteCallback and send_notify
+  unsigned long t1;
+  unsigned long t2;
+  unsigned long pulse_width;
+  float cm;
+  float inches;
+
+  // Hold the trigger pin high for at least 10 us
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Wait for pulse on echo pin
+  while ( digitalRead(ECHO_PIN) == 0 );
+
+  // Measure how long the echo pin was held high (pulse width)
+  // Note: the micros() counter will overflow after ~70 min
+  // TODO: We probably need to check for a timeout here just in case
+  // the ECHO_PIN never goes HIGH... so like
+  // while ( digitalRead(ECHO_PIN) == 1 && micros() - t1 < threshold);
+  t1 = micros();
+  while ( digitalRead(ECHO_PIN) == 1);
+  t2 = micros();
+  pulse_width = t2 - t1;
+
+  // Calculate distance in centimeters and inches. The constants
+  // are found in the datasheet, and calculated from the assumed speed 
+  // of sound in air at sea level (~340 m/s).
+  // Datasheet: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+  cm = pulse_width / 58.0;
+  inches = pulse_width / 148.0;
+
+  // Print out results
+  if ( pulse_width > MAX_DIST ) {
+    Serial.println("Out of range");
+  } else {
+    Serial.print(cm);
+    Serial.print(" cm \t");
+    Serial.print(inches);
+    Serial.println(" in");
+    if (cm < 50) {
+      analogWrite(LED_OUTPUT_PIN, 255);
+      tone(SOUND_OUTPUT_PIN, 2500);
+    } else {
+      analogWrite(LED_OUTPUT_PIN, 0);
+      noTone(SOUND_OUTPUT_PIN);
+    }
+  }
+  
+  // The HC-SR04 datasheet recommends waiting at least 60ms before next measurement
+  // in order to prevent accidentally noise between trigger and echo
+  // See: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+  delay(60);
 }
 
 /**
@@ -190,24 +261,19 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
       } else {
         analogWrite(RIGHT_EYE_ANALOG_OUT_PIN, 0);
       }
-
-      //servo angling only
-      
-      
-
-      int servoVal = map(receive_data[4], 0, 255, 135, 45);
-
-      _happinessServo.write( servoVal );
-      Serial.print("XPOS: ");
-      Serial.print(receive_data[4]);
-      Serial.print("SERVOVAL: ");
-      Serial.println(servoVal);
-
-
       // CSE590 Student TODO
       // Write code here that processes the FaceTrackerBLE data from Android
       // and properly angles the servo + ultrasonic sensor towards the face
       // Example servo code here: https://github.com/jonfroehlich/CSE590Sp2018/tree/master/L06-Arduino/RedBearDuoServoSweep   
+      
+      //servo angling only
+      int servoVal = map(receive_data[4], 0, 255, 135, 45);
+
+      _happinessServo.write( servoVal );
+      //Serial.print("XPOS: ");
+      //Serial.print(receive_data[4]);
+      //Serial.print("SERVOVAL: ");
+      //Serial.println(servoVal);
     }
   }
   return 0;
