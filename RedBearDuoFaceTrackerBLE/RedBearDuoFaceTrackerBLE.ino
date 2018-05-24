@@ -67,6 +67,17 @@ uint16_t smoothIntArray(uint16_t arr[]);
 const int SOUND_OUTPUT_PIN = A4;
 const int LED_OUTPUT_PIN = A0;
 
+/* creative feature variables */
+bool alarmOn = true;
+int const CORRECT_PASSWORD[] = { 1, 2 };
+int const PASSWORD_SIZE = 2;
+int password[PASSWORD_SIZE];
+int currentPasswordPosition = 0;
+int const BLINK_WINDOW_SIZE = 10;
+int leftBlink[BLINK_WINDOW_SIZE];
+int rightBlink[BLINK_WINDOW_SIZE];
+int currentBlinkPosition = 0;
+
 // Device connected and disconnected callbacks
 void deviceConnectedCallback(BLEStatus_t status, uint16_t handle);
 void deviceDisconnectedCallback(uint16_t handle);
@@ -212,18 +223,30 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
     
     // process the data. 
     if (receive_data[0] == 0x01) { //receive the face data 
-      // blinking test
-      if (receive_data[1] == 0x01) {
-        analogWrite(LEFT_EYE_ANALOG_OUT_PIN, 255);
-      } else {
-        analogWrite(LEFT_EYE_ANALOG_OUT_PIN, 0);
-      }
+      // blinking values for creative password
+      leftBlink[currentBlinkPosition] = receive_data[1];
+      rightBlink[currentBlinkPosition] = receive_data[2];
 
-      if (receive_data[2] == 0x01) {
-        analogWrite(RIGHT_EYE_ANALOG_OUT_PIN, 255);
+      // check if you have enough right and left vals to update password
+      if (currentBlinkPosition == BLINK_WINDOW_SIZE - 1) {
+        updatePassword();
+        currentBlinkPosition = 0;
+
+        // check if you have you enough password vals to evaluate password
+        if (currentPasswordPosition == PASSWORD_SIZE - 1) {
+          Serial.print("PASSWORD ATTEMPT: ");
+          Serial.print(password[0]);
+          Serial.print(", ");
+          Serial.println(password[1]);
+          evaluatePassword();
+          currentPasswordPosition = 0;
+        } else {
+          currentPasswordPosition += 1;
+        }
       } else {
-        analogWrite(RIGHT_EYE_ANALOG_OUT_PIN, 0);
+        currentBlinkPosition += 1;
       }
+      
       // CSE590 Student TODO
       // Write code here that processes the FaceTrackerBLE data from Android
       // and properly angles the servo + ultrasonic sensor towards the face
@@ -326,8 +349,10 @@ uint16_t smoothIntArray(uint16_t arr[]) {
 void reactToUltrasonicDistance() {
   // sound alarm and LED if within 0.5m
   if (lastSmoothDistanceValue < WARNING_DIST) {
-    analogWrite(LED_OUTPUT_PIN, 255);
-    tone(SOUND_OUTPUT_PIN, 2500);
+    if (alarmOn) {
+      analogWrite(LED_OUTPUT_PIN, 255);
+      tone(SOUND_OUTPUT_PIN, 2500);
+    }
   } else {
     analogWrite(LED_OUTPUT_PIN, 0);
     noTone(SOUND_OUTPUT_PIN);
@@ -339,5 +364,45 @@ void reactToUltrasonicDistance() {
         ble.sendNotify(send_handle, send_data, SEND_MAX_LEN);
 }
 
+/* creative feature helpers */
+void updatePassword() {
+  bool leftBlinkStatus = majorityInArray(leftBlink);
+  bool rightBlinkStatus = majorityInArray(rightBlink);
+
+  int passwordVal;
+  if (!leftBlinkStatus && !rightBlinkStatus) {
+    passwordVal = 0;
+  } else if (leftBlinkStatus && !rightBlinkStatus) {
+    passwordVal = 1;
+  } else if (!leftBlinkStatus && rightBlinkStatus) {
+    passwordVal = 2;
+  } else if (leftBlinkStatus && rightBlinkStatus) {
+    passwordVal = 3;
+  }
+
+  password[currentPasswordPosition] = passwordVal;
+}
+
+void evaluatePassword() {
+  for (int i = 0; i < PASSWORD_SIZE; i++) {
+    // password fails so move on
+    if (CORRECT_PASSWORD[i] != password[i]) {
+      return;
+    }
+  }
+
+  // passwords match so disable alarm
+  alarmOn = false;
+}
+
+bool majorityInArray(int arr[]) {
+  int sum = 0;
+  int arrLen = sizeof(arr)/sizeof(arr[0]);
+  for (int i = 0; i < arrLen; i++) {
+    sum = sum + arr[i];
+  }
+
+  return sum > (arrLen / 4.0);
+}
 
 

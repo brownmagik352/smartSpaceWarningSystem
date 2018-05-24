@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
     // Face Detection Smoothing Stuff
     private final int SMOOTHING_WINDOW = 5;
     private int mCurrentWindowPosition = 0;
-    private float[] mFaceVAlues = new float[SMOOTHING_WINDOW];
+    private float[] mFaceValues = new float[SMOOTHING_WINDOW];
     private float lastFaceValue = 255/2.0f; // starting this as middle of the phone to map to middle of the servo
 
     //==============================================================================================
@@ -475,29 +475,18 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
             // 4 : x-location of face (0-255 where 0 is left side of camera and 255 is right side of camera)
             byte[] buf = new byte[] { (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00}; // 5-byte initialization
 
-            // Puts in your data into the buffer
-            if (face.getIsLeftEyeOpenProbability() < 0.5f) {
-                buf[1] = 0x01;
-            } else {
-                buf[1] = 0x00;
-            }
-
-            if (face.getIsRightEyeOpenProbability() < 0.5f) {
-                buf[2] = 0x01;
-            } else {
-                buf[2] = 0x00;
-            }
-
             // update face value only when full smoothing window complete
-            mFaceVAlues[mCurrentWindowPosition] = face.getPosition().x;
+            mFaceValues[mCurrentWindowPosition] = face.getPosition().x;
             if (mCurrentWindowPosition == SMOOTHING_WINDOW - 1) {
-                lastFaceValue = averageFloatArray(mFaceVAlues);
+                lastFaceValue = averageFloatArray(mFaceValues);
                 mCurrentWindowPosition = 0;
             } else {
                 mCurrentWindowPosition++;
             }
 
             // send last smoothed face value
+            buf[1] = (byte) ((face.getIsLeftEyeOpenProbability() < 0.5f) ? 1 : 0);
+            buf[2] = (byte) ((face.getIsRightEyeOpenProbability() < 0.5f) ? 1 : 0);
             buf[4] = (byte) lastFaceValue;
 
             // Send the data!
