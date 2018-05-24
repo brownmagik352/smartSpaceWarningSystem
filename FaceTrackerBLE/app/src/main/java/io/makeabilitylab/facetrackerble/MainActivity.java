@@ -76,6 +76,12 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
     // Note the device name and the length should be consistent with the ones defined in the Duo sketch
     private final String TARGET_BLE_DEVICE_NAME = "apsuman";
 
+    // Face Detection Smoothing Stuff
+    private final int SMOOTHING_WINDOW = 5;
+    private int mCurrentWindowPosition = 0;
+    private float[] mFaceVAlues = new float[SMOOTHING_WINDOW];
+    private float lastFaceValue = 255/2.0f; // starting this as middle of the phone to map to middle of the servo
+
     //==============================================================================================
     // Activity Methods
     //==============================================================================================
@@ -482,7 +488,17 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
                 buf[2] = 0x00;
             }
 
-            buf[4] = (byte) face.getPosition().x;
+            // update face value only when full smoothing window complete
+            mFaceVAlues[mCurrentWindowPosition] = face.getPosition().x;
+            if (mCurrentWindowPosition == SMOOTHING_WINDOW - 1) {
+                lastFaceValue = averageFloatArray(mFaceVAlues);
+                mCurrentWindowPosition = 0;
+            } else {
+                mCurrentWindowPosition++;
+            }
+
+            // send last smoothed face value
+            buf[4] = (byte) lastFaceValue;
 
             // Send the data!
             mBLEDevice.sendData(buf);
@@ -578,5 +594,15 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
     @Override
     public void onBleRssiChanged(int rssi) {
         // Not needed for this app
+    }
+
+    private float averageFloatArray(float[] arr) {
+        float sum = 0;
+        int arrayLength = arr.length;
+        for (int i = 0; i < arrayLength; i++) {
+            sum += arr[i];
+        }
+
+        return sum / arrayLength;
     }
 }
