@@ -73,8 +73,6 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
     // Bluetooth stuff
     private BLEDevice mBLEDevice;
 
-    // TODO: Define your device name and the length of the name. For your assignment, do not use the
-    // default name or you will not be able to discriminate your board from everyone else's board.
     // Note the device name and the length should be consistent with the ones defined in the Duo sketch
     private final String TARGET_BLE_DEVICE_NAME = "apsuman";
 
@@ -434,8 +432,6 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
             mOverlay.add(mFaceGraphic);
             mFaceGraphic.updateFace(face);
 
-
-            // CSE590 Student TODO:
             // Once a face is detected, you get lots of information about the face for free, including
             // a smiling probability score, eye shut probability, and the location of the face in the
             // camera image (note that we are using a small camera size to speedup processing:
@@ -473,8 +469,7 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
             // 4 : x-location of face (0-255 where 0 is left side of camera and 255 is right side of camera)
             byte[] buf = new byte[] { (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00}; // 5-byte initialization
 
-            // CSE590 Student TODO:
-            // Write code that puts in your data into the buffer
+            // Puts in your data into the buffer
             if (face.getIsLeftEyeOpenProbability() < 0.5f) {
                 buf[1] = 0x01;
             } else {
@@ -573,10 +568,11 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
 
     @Override
     public void onBleDataReceived(byte[] data) {
-        // CSE590 Student TODO
-        // Write code here that receives the ultrasonic measurements from Arduino
-        // and outputs them in your app. (You could also consider receiving the angle
-        // of the servo motor but this would be more for debugging and is not necessary)
+        Toast toast = Toast.makeText(
+                MainActivity.this,
+                String.format("Person Detected: %d cm away", data[0]),
+                Toast.LENGTH_LONG);
+        toast.show();
     }
 
     @Override

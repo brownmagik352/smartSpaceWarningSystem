@@ -143,58 +143,7 @@ void setup() {
 
 void loop() 
 {
-  unsigned long t1;
-  unsigned long t2;
-  unsigned long pulse_width;
-  float cm;
-  float inches;
-
-  // Hold the trigger pin high for at least 10 us
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-
-  // Wait for pulse on echo pin
-  while ( digitalRead(ECHO_PIN) == 0 );
-
-  // Measure how long the echo pin was held high (pulse width)
-  // Note: the micros() counter will overflow after ~70 min
-  // TODO: We probably need to check for a timeout here just in case
-  // the ECHO_PIN never goes HIGH... so like
-  // while ( digitalRead(ECHO_PIN) == 1 && micros() - t1 < threshold);
-  t1 = micros();
-  while ( digitalRead(ECHO_PIN) == 1);
-  t2 = micros();
-  pulse_width = t2 - t1;
-
-  // Calculate distance in centimeters and inches. The constants
-  // are found in the datasheet, and calculated from the assumed speed 
-  // of sound in air at sea level (~340 m/s).
-  // Datasheet: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  cm = pulse_width / 58.0;
-  inches = pulse_width / 148.0;
-
-  // Print out results
-  if ( pulse_width > MAX_DIST ) {
-    Serial.println("Out of range");
-  } else {
-    Serial.print(cm);
-    Serial.print(" cm \t");
-    Serial.print(inches);
-    Serial.println(" in");
-    if (cm < 50) {
-      analogWrite(LED_OUTPUT_PIN, 255);
-      tone(SOUND_OUTPUT_PIN, 2500);
-    } else {
-      analogWrite(LED_OUTPUT_PIN, 0);
-      noTone(SOUND_OUTPUT_PIN);
-    }
-  }
   
-  // The HC-SR04 datasheet recommends waiting at least 60ms before next measurement
-  // in order to prevent accidentally noise between trigger and echo
-  // See: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
-  delay(60);
 }
 
 /**
@@ -288,8 +237,61 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
  * the connected BLE device (e.g., Android)
  */
 static void bleSendDataTimerCallback(btstack_timer_source_t *ts) {
-  // CSE590 Student TODO
-  // Write code that uses the ultrasonic sensor and transmits this to Android
-  // Example ultrasonic code here: https://github.com/jonfroehlich/CSE590Sp2018/tree/master/L06-Arduino/RedBearDuoUltrasonicRangeFinder
-  // Also need to check if distance measurement < threshold and sound alarm
+
+  /* GET DISTANCE FROM ULTRASONIC SENSOR */
+  unsigned long t1;
+  unsigned long t2;
+  unsigned long pulse_width;
+  uint16_t cm;
+  uint16_t inches;
+
+  // Hold the trigger pin high for at least 10 us
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Wait for pulse on echo pin
+  while ( digitalRead(ECHO_PIN) == 0 );
+
+  // Measure how long the echo pin was held high (pulse width)
+  // Note: the micros() counter will overflow after ~70 min
+  // TODO: We probably need to check for a timeout here just in case
+  // the ECHO_PIN never goes HIGH... so like
+  // while ( digitalRead(ECHO_PIN) == 1 && micros() - t1 < threshold);
+  t1 = micros();
+  while ( digitalRead(ECHO_PIN) == 1);
+  t2 = micros();
+  pulse_width = t2 - t1;
+
+  // Calculate distance in centimeters and inches. The constants
+  // are found in the datasheet, and calculated from the assumed speed 
+  // of sound in air at sea level (~340 m/s).
+  // Datasheet: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
+  cm = pulse_width / 58;
+  inches = pulse_width / 148;
+
+  /* RESULTS FROM DISTANCE */
+
+  // sound alarm and LED if within 0.5m
+  if ( pulse_width > MAX_DIST ) {
+    Serial.println("Out of range");
+  } else {
+    
+    if (cm < 50) {
+      analogWrite(LED_OUTPUT_PIN, 255);
+      tone(SOUND_OUTPUT_PIN, 2500);
+    } else {
+      analogWrite(LED_OUTPUT_PIN, 0);
+      noTone(SOUND_OUTPUT_PIN);
+    }
+
+    // send distance over to Android app
+    send_data[0] = cm;
+    if (ble.attServerCanSendPacket())
+          ble.sendNotify(send_handle, send_data, SEND_MAX_LEN);
+  }
+    
+  /* Restart timer */
+  ble.setTimer(ts, _sendDataFrequency);
+  ble.addTimer(ts);
 }
