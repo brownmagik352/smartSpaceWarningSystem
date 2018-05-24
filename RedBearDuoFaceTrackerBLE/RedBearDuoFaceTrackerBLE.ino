@@ -46,21 +46,22 @@ Servo _happinessServo;
 const int TRIG_PIN = D0;
 const int ECHO_PIN = D1;
 
-  // Constantss
+  // Constants
   // Anything over 400 cm (23200 us pulse) is "out of range"
-const unsigned int MAX_DIST = 23200;
+const unsigned int MAX_DIST = 400;
 const unsigned int WARNING_DIST = 50;
 
   // Smoothing variables for ultrasonic sensor
-int const SMOOTHING_WINDOW = 5;
-int smoothDistance[SMOOTHING_WINDOW];
+uint16_t const SMOOTHING_WINDOW = 3;
+uint16_t smoothDistance[SMOOTHING_WINDOW];
 int smoothCurrentPosition = 0;
-int lastDistanceValue = MAX_DIST; // starting value default
+uint16_t lastSmoothDistanceValue = MAX_DIST; // starting value default
 
   // helper functions
 void reactToUltrasonicDistance(uint16_t);
-int getUltrasonicValue();
-void smoothUltrasonicValues();
+uint16_t getUltrasonicValue();
+void updateUltrasonicLastValue(uint16_t cm);
+uint16_t smoothIntArray(uint16_t arr[]);
 
   // sound and LED indicators
 const int SOUND_OUTPUT_PIN = A4;
@@ -251,17 +252,23 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
  */
 static void bleSendDataTimerCallback(btstack_timer_source_t *ts) {
   
-  int cm = getUltrasonicValue();
-  
-  if ( cm > 0 )
-    reactToUltrasonicDistance(cm);
+  uint16_t cm = getUltrasonicValue();
+  updateUltrasonicLastValue(cm);
+  reactToUltrasonicDistance();
     
   /* Restart timer */
   ble.setTimer(ts, _sendDataFrequency);
   ble.addTimer(ts);
 }
 
-int getUltrasonicValue() {
+/*
+ *  Helper functions for ultrasonic
+ *  Reading the value
+ *  Smoothing the value
+ *  Sending and reacting to value
+ *  
+*/
+uint16_t getUltrasonicValue() {
   unsigned long t1;
   unsigned long t2;
   unsigned long pulse_width;
@@ -292,17 +299,33 @@ int getUltrasonicValue() {
   // Datasheet: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
   cm = pulse_width / 58;
 
-  if ( pulse_width > MAX_DIST ) {
-    Serial.println("Out of range");
-    return -1;
+  return cm;
+}
+
+void updateUltrasonicLastValue(uint16_t cm) {
+
+  smoothDistance[smoothCurrentPosition] = cm;
+  if (smoothCurrentPosition == SMOOTHING_WINDOW - 1) {
+    lastSmoothDistanceValue = smoothIntArray(smoothDistance);
+    smoothCurrentPosition = 0;
   } else {
-    return cm;
+    smoothCurrentPosition = smoothCurrentPosition + 1;
   }
 }
 
-void reactToUltrasonicDistance(uint16_t cm) {
+uint16_t smoothIntArray(uint16_t arr[]) {
+  uint16_t sum = 0;
+  for (uint16_t i = 0; i < SMOOTHING_WINDOW; i++) {
+    sum = sum + arr[i];
+  }
+
+  return sum / SMOOTHING_WINDOW;
+  
+}
+
+void reactToUltrasonicDistance() {
   // sound alarm and LED if within 0.5m
-  if (cm < WARNING_DIST) {
+  if (lastSmoothDistanceValue < WARNING_DIST) {
     analogWrite(LED_OUTPUT_PIN, 255);
     tone(SOUND_OUTPUT_PIN, 2500);
   } else {
@@ -311,8 +334,10 @@ void reactToUltrasonicDistance(uint16_t cm) {
   }
 
   // send distance over to Android app
-  send_data[0] = cm;
+  send_data[0] = lastSmoothDistanceValue;
   if (ble.attServerCanSendPacket())
         ble.sendNotify(send_handle, send_data, SEND_MAX_LEN);
 }
+
+
 
