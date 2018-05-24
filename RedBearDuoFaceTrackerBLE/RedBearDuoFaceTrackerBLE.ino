@@ -41,15 +41,28 @@ SYSTEM_MODE(SEMI_AUTOMATIC);
 // happiness meter (servo)
 Servo _happinessServo;
 
-// ultrasonic setup
+/* ultrasonic setup */
   // Pins
 const int TRIG_PIN = D0;
 const int ECHO_PIN = D1;
 
+  // Constantss
   // Anything over 400 cm (23200 us pulse) is "out of range"
 const unsigned int MAX_DIST = 23200;
+const unsigned int WARNING_DIST = 50;
 
-// sound and LED indicators
+  // Smoothing variables for ultrasonic sensor
+int const SMOOTHING_WINDOW = 5;
+int smoothDistance[SMOOTHING_WINDOW];
+int smoothCurrentPosition = 0;
+int lastDistanceValue = MAX_DIST; // starting value default
+
+  // helper functions
+void reactToUltrasonicDistance(uint16_t);
+int getUltrasonicValue();
+void smoothUltrasonicValues();
+
+  // sound and LED indicators
 const int SOUND_OUTPUT_PIN = A4;
 const int LED_OUTPUT_PIN = A0;
 
@@ -237,8 +250,18 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
  * the connected BLE device (e.g., Android)
  */
 static void bleSendDataTimerCallback(btstack_timer_source_t *ts) {
+  
+  int cm = getUltrasonicValue();
+  
+  if ( cm > 0 )
+    reactToUltrasonicDistance(cm);
+    
+  /* Restart timer */
+  ble.setTimer(ts, _sendDataFrequency);
+  ble.addTimer(ts);
+}
 
-  /* GET DISTANCE FROM ULTRASONIC SENSOR */
+int getUltrasonicValue() {
   unsigned long t1;
   unsigned long t2;
   unsigned long pulse_width;
@@ -268,30 +291,28 @@ static void bleSendDataTimerCallback(btstack_timer_source_t *ts) {
   // of sound in air at sea level (~340 m/s).
   // Datasheet: https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf
   cm = pulse_width / 58;
-  inches = pulse_width / 148;
 
-  /* RESULTS FROM DISTANCE */
-
-  // sound alarm and LED if within 0.5m
   if ( pulse_width > MAX_DIST ) {
     Serial.println("Out of range");
+    return -1;
   } else {
-    
-    if (cm < 50) {
-      analogWrite(LED_OUTPUT_PIN, 255);
-      tone(SOUND_OUTPUT_PIN, 2500);
-    } else {
-      analogWrite(LED_OUTPUT_PIN, 0);
-      noTone(SOUND_OUTPUT_PIN);
-    }
-
-    // send distance over to Android app
-    send_data[0] = cm;
-    if (ble.attServerCanSendPacket())
-          ble.sendNotify(send_handle, send_data, SEND_MAX_LEN);
+    return cm;
   }
-    
-  /* Restart timer */
-  ble.setTimer(ts, _sendDataFrequency);
-  ble.addTimer(ts);
 }
+
+void reactToUltrasonicDistance(uint16_t cm) {
+  // sound alarm and LED if within 0.5m
+  if (cm < WARNING_DIST) {
+    analogWrite(LED_OUTPUT_PIN, 255);
+    tone(SOUND_OUTPUT_PIN, 2500);
+  } else {
+    analogWrite(LED_OUTPUT_PIN, 0);
+    noTone(SOUND_OUTPUT_PIN);
+  }
+
+  // send distance over to Android app
+  send_data[0] = cm;
+  if (ble.attServerCanSendPacket())
+        ble.sendNotify(send_handle, send_data, SEND_MAX_LEN);
+}
+
