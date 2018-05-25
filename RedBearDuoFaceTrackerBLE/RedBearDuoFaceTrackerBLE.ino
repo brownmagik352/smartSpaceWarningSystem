@@ -1,6 +1,12 @@
 #include "ble_config.h"
 
 /*
+ * Apurv Suman
+ * UW PMP CSEP590 A4
+ * Heavily uses scaffolding code at https://github.com/jonfroehlich/CSE590Sp2018/tree/master/A04-FaceTrackerBLE
+ */
+
+/*
  * Provides skeleton code to interact with the Android FaceTrackerBLE app 
  * 
  * Created by Jon Froehlich, May 7, 2018
@@ -14,23 +20,13 @@
 SYSTEM_MODE(SEMI_AUTOMATIC); 
 #endif
 
-#define RECEIVE_MAX_LEN  5 // TODO: change this based on how much data you are sending from Android 
+#define RECEIVE_MAX_LEN  5
 #define SEND_MAX_LEN    3
 
 // Must be an integer between 1 and 9 and and must also be set to len(BLE_SHORT_NAME) + 1
 #define BLE_SHORT_NAME_LEN 8 
-
-// The number of chars should be BLE_SHORT_NAME_LEN - 1. So, for example, if your BLE_SHORT_NAME was 'J', 'o', 'n'
-// then BLE_SHORT_NAME_LEN should be 4. If 'M','a','k','e','L','a','b' then BLE_SHORT_NAME_LEN should be 8
-// TODO: you must change this name. Otherwise, you will not be able to differentiate your RedBear Duo BLE
-// device from everyone else's device in class.
 #define BLE_SHORT_NAME 'a','p','s','u','m','a','n'  
 
-/* Define the pins on the Duo board
- * TODO: change and add/subtract the pins here for your applications (as necessary)
- */
-#define LEFT_EYE_ANALOG_OUT_PIN D4
-#define RIGHT_EYE_ANALOG_OUT_PIN D5
 #define HAPPINESS_ANALOG_OUT_PIN D2
 
 #define MAX_SERVO_ANGLE  180
@@ -67,9 +63,16 @@ uint16_t smoothIntArray(uint16_t arr[]);
 const int SOUND_OUTPUT_PIN = A4;
 const int LED_OUTPUT_PIN = A0;
 
+/*
+ * Creative Feature: Blinking Password
+ * In a giving Blink Window (i.e. smoothing) determine which eyes were blinked
+ * The sequence of blinks gives you a password
+ * If the password attempt matches the hard-coded password
+ * Then disable the alarm
+ */
 /* creative feature variables */
 bool alarmOn = true;
-int const CORRECT_PASSWORD[] = { 1, 2 };
+int const CORRECT_PASSWORD[] = { 1, 2 }; // hard-coded password
 int const PASSWORD_SIZE = 2;
 int password[PASSWORD_SIZE];
 int currentPasswordPosition = 0;
@@ -144,9 +147,7 @@ void setup() {
   ble.startAdvertising();
   Serial.println("BLE start advertising.");
 
-  // Setup pins
-  pinMode(LEFT_EYE_ANALOG_OUT_PIN, OUTPUT);
-  pinMode(RIGHT_EYE_ANALOG_OUT_PIN, OUTPUT);
+  // Setup servo motor pin
   pinMode(BLE_DEVICE_CONNECTED_DIGITAL_OUT_PIN, OUTPUT);
   _happinessServo.attach(HAPPINESS_ANALOG_OUT_PIN);
   _happinessServo.write( (int)((MAX_SERVO_ANGLE - MIN_SERVO_ANGLE) / 2.0) );
@@ -221,7 +222,7 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
     }
     Serial.println(" ");
     
-    // process the data. 
+    // process the data received from Android 
     if (receive_data[0] == 0x01) { //receive the face data 
       // blinking values for creative password
       leftBlink[currentBlinkPosition] = receive_data[1];
@@ -247,19 +248,10 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
         currentBlinkPosition += 1;
       }
       
-      // CSE590 Student TODO
-      // Write code here that processes the FaceTrackerBLE data from Android
-      // and properly angles the servo + ultrasonic sensor towards the face
-      // Example servo code here: https://github.com/jonfroehlich/CSE590Sp2018/tree/master/L06-Arduino/RedBearDuoServoSweep   
-      
-      //servo angling only
+      //servo angling
       int servoVal = map(receive_data[4], 0, 255, 135, 45);
 
       _happinessServo.write( servoVal );
-      //Serial.print("XPOS: ");
-      //Serial.print(receive_data[4]);
-      //Serial.print("SERVOVAL: ");
-      //Serial.println(servoVal);
     }
   }
   return 0;
@@ -288,7 +280,7 @@ static void bleSendDataTimerCallback(btstack_timer_source_t *ts) {
  *  Helper functions for ultrasonic
  *  Reading the value
  *  Smoothing the value
- *  Sending and reacting to value
+ *  Sending and reacting to value (alarms, back to Android, etc)
  *  
 */
 uint16_t getUltrasonicValue() {
@@ -307,10 +299,6 @@ uint16_t getUltrasonicValue() {
   while ( digitalRead(ECHO_PIN) == 0 );
 
   // Measure how long the echo pin was held high (pulse width)
-  // Note: the micros() counter will overflow after ~70 min
-  // TODO: We probably need to check for a timeout here just in case
-  // the ECHO_PIN never goes HIGH... so like
-  // while ( digitalRead(ECHO_PIN) == 1 && micros() - t1 < threshold);
   t1 = micros();
   while ( digitalRead(ECHO_PIN) == 1);
   t2 = micros();
@@ -366,6 +354,7 @@ void reactToUltrasonicDistance() {
 
 /* creative feature helpers */
 void updatePassword() {
+  // left and right blinks are determined based on what amount of the blink window had that eye blinking
   bool leftBlinkStatus = majorityInArray(leftBlink);
   bool rightBlinkStatus = majorityInArray(rightBlink);
 
