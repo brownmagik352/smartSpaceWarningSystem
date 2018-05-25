@@ -38,6 +38,12 @@ import io.makeabilitylab.facetrackerble.ble.BLEUtil;
 import io.makeabilitylab.facetrackerble.camera.CameraSourcePreview;
 import io.makeabilitylab.facetrackerble.camera.GraphicOverlay;
 
+
+/*
+Apurv Suman
+UW PMP CSEP590 A4
+Heavily uses scaffolding code from https://github.com/jonfroehlich/CSE590Sp2018/tree/master/A04-FaceTrackerBLE
+ */
 /**
  * Demonstrates how to use the Google Android Vision API--specifically the FaceDetector--along
  * with the RedBear Duo. The app detects faces in real-time and transmits left eye and right eye
@@ -50,8 +56,7 @@ import io.makeabilitylab.facetrackerble.camera.GraphicOverlay;
  *   - The Googly Eyes demo: https://github.com/googlesamples/android-vision/tree/master/visionSamples/googly-eyes
  *   - The CSE590 BLE demo: https://github.com/jonfroehlich/CSE590Sp2018/tree/master/A03-BLEAdvanced
  *
- * Jon TODO:
- *  1. (Low priority) We shouldn't disconnect from BLE just because our orientation changed (e.g., from Portrait to Landscape). How to deal?
+ *
  */
 public class MainActivity extends AppCompatActivity implements BLEListener{
 
@@ -554,7 +559,6 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
         TextView textViewBleStatus = (TextView)findViewById(R.id.textViewBleStatus);
         textViewBleStatus.setText("BLE connection to '" + TARGET_BLE_DEVICE_NAME + "' failed");
 
-        // Jon TODO: We should really pause here before trying to reconnect...
         // Have some sort of backoff
         attemptBleConnection();
     }
@@ -566,7 +570,6 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
         TextView textViewBleStatus = (TextView)findViewById(R.id.textViewBleStatus);
         textViewBleStatus.setText("Disconnected from '" + TARGET_BLE_DEVICE_NAME + "'");
 
-        // Jon TODO: We should really pause here before trying to reconnect...
         // Have some sort of backoff
         attemptBleConnection();
     }
@@ -585,6 +588,7 @@ public class MainActivity extends AppCompatActivity implements BLEListener{
         // Not needed for this app
     }
 
+    // Helper Function to calculate the average of an arbitrary array of floats
     private float averageFloatArray(float[] arr) {
         float sum = 0;
         int arrayLength = arr.length;
