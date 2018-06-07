@@ -66,7 +66,6 @@ const int PHOTO_INPUT_PIN = A2;
 const unsigned int MAX_HUMAN_FREQ = 5000;
 const unsigned int MIN_HUMAN_FREQ = 2000;
 const unsigned int MAX_PHOTO_VAL = 4096;
-const float DARKNESS_MULTIPLIER_MAX = 2.0;
 
 /*
  * Creative Feature: Blinking Password
@@ -337,12 +336,13 @@ uint16_t smoothIntArray(uint16_t arr[]) {
 }
 
 void reactToUltrasonicDistance() {
+  
   // sound alarm and LED if within 0.5m
   if (lastSmoothDistanceValue < WARNING_DIST) {
     if (alarmOn) {
       analogWrite(LED_OUTPUT_PIN, 255);
       // higher frequency as the person gets closer
-      int distanceToSound = map(lastSmoothDistanceValue, WARNING_DIST, 0, MIN_HUMAN_FREQ, MAX_HUMAN_FREQ/DARKNESS_MULTIPLIER_MAX);
+      int distanceToSound = map(lastSmoothDistanceValue, WARNING_DIST, 0, MIN_HUMAN_FREQ, MAX_HUMAN_FREQ/2);
 
       // higher frequency if its darker
       distanceToSound = distanceToSound * getDarknessMultiplier();
@@ -406,8 +406,8 @@ bool majorityInArray(int arr[]) {
 float getDarknessMultiplier() {
   int photoVal = analogRead(PHOTO_INPUT_PIN);
   float multiplier = 1.0;
-  if (photoVal < MAX_PHOTO_VAL/DARKNESS_MULTIPLIER_MAX) {
-    multiplier = DARKNESS_MULTIPLIER_MAX;
+  if (photoVal < MAX_PHOTO_VAL/2) {
+    multiplier = 2.0;
   }
   return multiplier;
 }
