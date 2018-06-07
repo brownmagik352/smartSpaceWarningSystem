@@ -339,7 +339,9 @@ void reactToUltrasonicDistance() {
   if (lastSmoothDistanceValue < WARNING_DIST) {
     if (alarmOn) {
       analogWrite(LED_OUTPUT_PIN, 255);
-      tone(SOUND_OUTPUT_PIN, 2500);
+      // higher frequency as the person gets closer
+      int distanceToSound = map(lastSmoothDistanceValue, WARNING_DIST, 0, 2000, 5000);
+      tone(SOUND_OUTPUT_PIN, distanceToSound);
     }
   } else {
     analogWrite(LED_OUTPUT_PIN, 0);
