@@ -59,9 +59,14 @@ uint16_t getUltrasonicValue();
 void updateUltrasonicLastValue(uint16_t cm);
 uint16_t smoothIntArray(uint16_t arr[]);
 
-  // sound and LED indicators
+  // sound and LED and photo indicators
 const int SOUND_OUTPUT_PIN = A4;
 const int LED_OUTPUT_PIN = A0;
+const int PHOTO_INPUT_PIN = A2;
+const unsigned int MAX_HUMAN_FREQ = 5000;
+const unsigned int MIN_HUMAN_FREQ = 2000;
+const unsigned int MAX_PHOTO_VAL = 4096;
+const float DARKNESS_MULTIPLIER_MAX = 2.0;
 
 /*
  * Creative Feature: Blinking Password
@@ -152,9 +157,10 @@ void setup() {
   _happinessServo.attach(HAPPINESS_ANALOG_OUT_PIN);
   _happinessServo.write( (int)((MAX_SERVO_ANGLE - MIN_SERVO_ANGLE) / 2.0) );
 
-  // sound and led pin setup
+  // sound and led and photo pin setup
   pinMode(LED_OUTPUT_PIN, OUTPUT);
   pinMode(SOUND_OUTPUT_PIN, OUTPUT);
+  pinMode(PHOTO_INPUT_PIN, INPUT);
   
   // The Trigger pin will tell the sensor to range find
   pinMode(TRIG_PIN, OUTPUT);
@@ -235,10 +241,6 @@ int bleReceiveDataCallback(uint16_t value_handle, uint8_t *buffer, uint16_t size
 
         // check if you have you enough password vals to evaluate password
         if (currentPasswordPosition == PASSWORD_SIZE - 1) {
-          Serial.print("PASSWORD ATTEMPT: ");
-          Serial.print(password[0]);
-          Serial.print(", ");
-          Serial.println(password[1]);
           evaluatePassword();
           currentPasswordPosition = 0;
         } else {
@@ -340,7 +342,11 @@ void reactToUltrasonicDistance() {
     if (alarmOn) {
       analogWrite(LED_OUTPUT_PIN, 255);
       // higher frequency as the person gets closer
-      int distanceToSound = map(lastSmoothDistanceValue, WARNING_DIST, 0, 2000, 5000);
+      int distanceToSound = map(lastSmoothDistanceValue, WARNING_DIST, 0, MIN_HUMAN_FREQ, MAX_HUMAN_FREQ/DARKNESS_MULTIPLIER_MAX);
+
+      // higher frequency if its darker
+      distanceToSound = distanceToSound * getDarknessMultiplier();
+      
       tone(SOUND_OUTPUT_PIN, distanceToSound);
     }
   } else {
@@ -394,6 +400,16 @@ bool majorityInArray(int arr[]) {
   }
 
   return sum > (arrLen / 4.0);
+}
+
+/* function creates a multiplier based on how dark it is */
+float getDarknessMultiplier() {
+  int photoVal = analogRead(PHOTO_INPUT_PIN);
+  float multiplier = 1.0;
+  if (photoVal < MAX_PHOTO_VAL/DARKNESS_MULTIPLIER_MAX) {
+    multiplier = DARKNESS_MULTIPLIER_MAX;
+  }
+  return multiplier;
 }
 
 
